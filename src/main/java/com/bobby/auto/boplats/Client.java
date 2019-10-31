@@ -101,6 +101,44 @@ public class Client {
         }
     }
 
+    private void processResults_TEST_Apply_Without_Condition_Check() {
+        final Integer NOT_MATCH = 1;
+        final Integer MATCH = 2;
+        final Integer NEED_LOGIN = 0;
+        int row = 0;
+        while (row < 7){ // only first 7 rows
+            row++;
+            String rowPath = "//*[@id=\"search-result-items\"]/tr["+row+"]/td";
+            String adUrl = getByXPath(rowPath + "/a").get().getAttribute("href");
+            if (skipAds.contains(adUrl)){
+                log.info("Ad is checked before. Skipped!");
+                continue;
+            }
+            skipAds.add(adUrl);
+            Integer price = getPrice(rowPath);
+            WebElement condition = getByXPath(rowPath+"/a/div[2]/div[6]").get();
+            Integer termsAndConditionFieldValue = Integer.parseInt(condition.getAttribute("data-value"));
+            log.info(" ---------- [ AD ] price:  " + price + " , condition type: "+ termsAndConditionFieldValue+" ----------");
+            if (NEED_LOGIN.equals(termsAndConditionFieldValue)){
+                log.warn("Terms & conditions not visible! Login required!");
+                return;
+            }else{
+                if (openAndApplyForAd(adUrl)){
+
+                        /* Break after 1st apply, so the entire process will start at next scheduled interval,
+                        otherwise current While loop will encounter errors for all next tries as current page is not the search results anymore.
+                        When process starts again at next scheduled interval, it will skip all applied records
+                        */
+                    //break;
+                    goBack(2); // should back twice after successful register
+                }else {
+                    goBack(1); // only once after doing nothing in Ads page
+                }
+            }
+
+        }
+    }
+
     private void processResults() {
         final Integer NOT_MATCH = 1;
         final Integer MATCH = 2;
@@ -129,7 +167,6 @@ public class Client {
                     // good, go for it
                     log.info("pre-conditions passed. opening ad for check & interest registration");
                     if (openAndApplyForAd(adUrl)){
-
                         /* Break after 1st apply, so the entire process will start at next scheduled interval,
                         otherwise current While loop will encounter errors for all next tries as current page is not the search results anymore.
                         When process starts again at next scheduled interval, it will skip all applied records
@@ -214,19 +251,49 @@ public class Client {
 
     private boolean openAndApplyForAd(String adUrl) {
         driver.get(adUrl);
-        if (notTooManyApplicantsAlreadyRegistered(adUrl)){
-            log.info("Not too many applicants yet, so let's register interest...");
-            Optional<WebElement> submit = getByXPath("//*[@id=\"apply\"]");
-            submit.ifPresent(WebElement::click);
-            log.info("-------------------------------------------------------------------------");
-            log.info("********** REGISTERED INTEREST **********");
-            log.info("Ad URL: {}",adUrl);
-            log.info("-------------------------------------------------------------------------");
-            return true;
-        }else {
-            log.info("Number of applicants exceed the limit. Not registered.");
+        try {
+            if (noRanking(adUrl) && notTooManyApplicantsAlreadyRegistered(adUrl)) {
+                log.info("Registering interest...");
+                Optional<WebElement> submit = getByXPath("//*[@id=\"apply\"]");
+                submit.ifPresent(WebElement::click);
+                log.info("-------------------------------------------------------------------------");
+                log.info("********** REGISTERED INTEREST **********");
+                log.info("Ad URL: {}", adUrl);
+                log.info("-------------------------------------------------------------------------");
+                return true;
+            } else {
+                log.info("Not registered.");
+                return false;
+            }
+        } catch (Exception e) {
+            log.error("Failed to open and apply", e);
             return false;
         }
+    }
+
+    private boolean noRanking(String adUrl) {
+        // Click on terms button and open the popup div
+        String termsButtonPath = "//*[@id=\"baseCriteriaDetails\"]";
+        new WebDriverWait(driver, 10).until(ExpectedConditions.visibilityOfElementLocated(By.xpath(termsButtonPath)));
+        WebElement termsElement = getByXPath(termsButtonPath).get();
+        termsElement.click();
+        wait(1);
+
+        // get criteria text element
+        String criteriaTextPath = "//*[@id=\"searchCriteria\"]/div[1]/div/div";
+        WebElement criteriaTextElement = getByXPath(criteriaTextPath).get();
+        String criteria = criteriaTextElement.getText();
+        log.info("Criteria: {}",criteria);
+
+        // check if criteria needs no ranking
+        if (criteria.toLowerCase().contains("no ranking".toLowerCase())){
+            log.info("Ranking is NOT needed.");
+            return true;
+        } else {
+            log.info("Ranking is needed.");
+            return false;
+        }
+
     }
 
     private boolean notTooManyApplicantsAlreadyRegistered(String adUrl) {
@@ -237,8 +304,10 @@ public class Client {
         int applicantsCount = Integer.parseInt(value.split(" ")[0]);
         log.info("Applicants: {}",applicantsCount);
         if (applicantsCount <= maxApplicants){
+            log.info("Not so many applicants.");
             return true;
         }else {
+            log.info("Too many applicants.");
             return false;
         }
 
