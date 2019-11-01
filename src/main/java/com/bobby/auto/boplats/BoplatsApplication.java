@@ -11,7 +11,15 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Scope;
+import org.springframework.core.io.Resource;
 import org.springframework.scheduling.annotation.EnableScheduling;
+import org.springframework.util.FileCopyUtils;
+
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.Reader;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 @SpringBootApplication
 @EnableScheduling
@@ -38,6 +46,15 @@ public class BoplatsApplication {
 		log.info("Creating FirefoxDriver bean");
 		System.setProperty("webdriver.gecko.driver", firefoxPath);
 		return new FirefoxDriver();
+	}
+
+	@Value("classpath:email_request.json")
+	Resource emailResource;
+
+	@Bean
+	public String emailRequestBodyAsString() throws IOException {
+		Reader reader = new InputStreamReader(emailResource.getInputStream(), UTF_8);
+		return FileCopyUtils.copyToString(reader);
 	}
 
 	public static Integer f(){

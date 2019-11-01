@@ -1,0 +1,31 @@
+{
+  "personalizations": [
+    {
+      "to": [
+        {
+          "email": "losingsleeep@yahoo.com",
+          "name": "Bob"
+        }
+      ],
+      "subject": "Registered interest!"
+    }
+  ],
+  "content": [
+    {
+      "type": "text/plain",
+      "value": "Hi, just registered interest for this case: ${adUrl}"
+    },
+    {
+      "type": "text/html",
+      "value": "<html><body>Hey! <br/> Just registered interest for this case: <br/><a href='${adUrl}'><b>${adUrl}</b></a></body></html>"
+    }
+  ],
+  "from": {
+    "email": "night.owl@project1.pet",
+    "name": "Night Owl"
+  },
+  "reply_to": {
+    "email": "night.owl@project1.pet",
+    "name": "Night Owl"
+  }
+}

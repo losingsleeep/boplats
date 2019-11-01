@@ -1,5 +1,11 @@
 package com.bobby.auto.boplats;
 
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.entity.StringEntity;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.impl.client.HttpClients;
+import org.apache.http.util.EntityUtils;
 import org.openqa.selenium.*;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.WebDriverWait;
@@ -11,11 +17,13 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.io.IOException;
 import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
 import java.util.HashSet;
 import java.util.Optional;
 import java.util.Set;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * @author Babak Eghbali (Bob)
@@ -28,7 +36,13 @@ public class Client {
     private final Logger log = LoggerFactory.getLogger(this.getClass());
 
     @Autowired
+    private String emailRequestBodyAsString;
+
+    @Autowired
     WebDriver driver;
+
+    @Value("${notification.email}")
+    private Boolean emailNotificationEnabled;
 
     @Value("${login.user}")
     private String user;
@@ -172,6 +186,7 @@ public class Client {
                         When process starts again at next scheduled interval, it will skip all applied records
                         */
                         //break;
+                        sendNotification(adUrl);
                         goBack(2); // should back twice after successful register
                     }else {
                         goBack(1); // only once after doing nothing in Ads page
@@ -185,6 +200,45 @@ public class Client {
 
         }
     }
+
+    private void sendNotification(String adUrl) {
+        if (emailNotificationEnabled){
+            sendEmailNotification(adUrl);
+        }
+    }
+
+    private void sendEmailNotification(String adUrl) {
+        try {
+            // prepare request body
+            String requestBody = emailRequestBodyAsString.replace("${adUrl}",adUrl);
+            // send the email
+            CloseableHttpClient client = HttpClients.createDefault();
+            HttpPost httpPost = new HttpPost("https://api.sendgrid.com/v3/mail/send");
+
+            StringEntity requestBodyEntity = new StringEntity(requestBody);
+            httpPost.setEntity(requestBodyEntity);
+            httpPost.setHeader("Authorization", "Bearer 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");
+            httpPost.setHeader("Content-type", "application/json");
+
+            CloseableHttpResponse response = client.execute(httpPost);
+            Integer responseCode = response.getStatusLine().getStatusCode();
+            if (!responseCode.toString().startsWith("2")){ // if HTTP response status code is not 2xx
+                log.error("Email notification sent, but was received status code {} with response body: {}",
+                        responseCode, EntityUtils.toString(response.getEntity(), "UTF-8"));
+            } else {
+                log.info("Email notification sent successfully.");
+            }
+            response.close();
+            client.close();
+        } catch (IOException e) {
+            log.error("Failed to send email notification", e);
+        }
+    }
+
+//    public String emailRequestAsString() throws IOException {
+//        Reader reader = new InputStreamReader(emailResource.getInputStream(), UTF_8);
+//        return FileCopyUtils.copyToString(reader);
+//    }
 
     private Integer getPrice(String rowPath){
         String priceString;
